@@ -36,10 +36,12 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS comments (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     flower_id INTEGER NOT NULL,
+    parent_id INTEGER,
     content   TEXT    NOT NULL,
     user_hash TEXT    NOT NULL,
     created_at TEXT   NOT NULL DEFAULT (datetime('now','localtime')),
-    FOREIGN KEY (flower_id) REFERENCES flowers(id) ON DELETE CASCADE
+    FOREIGN KEY (flower_id) REFERENCES flowers(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
   );
 `);
 
@@ -230,12 +232,12 @@ app.get('/api/flowers/:id/comments', (req, res) => {
   res.json(rows);
 });
 
-// POST /api/flowers/:id/comments - add a comment to a flower
+// POST /api/flowers/:id/comments - add a comment or reply to a flower
 app.post('/api/flowers/:id/comments', (req, res) => {
   const id = parseInt(req.params.id);
   if (!id) return res.status(400).json({ error: 'Invalid id' });
 
-  const { content } = req.body;
+  const { content, parentId } = req.body;
   if (!content || !content.trim()) {
     return res.status(400).json({ error: '请输入评论内容' });
   }
@@ -246,10 +248,17 @@ app.post('/api/flowers/:id/comments', (req, res) => {
   const flower = db.prepare('SELECT id FROM flowers WHERE id = ?').get(id);
   if (!flower) return res.status(404).json({ error: 'Flower not found' });
 
+  let parent_id = null;
+  if (parentId) {
+    parent_id = parseInt(parentId);
+    const parent = db.prepare('SELECT id FROM comments WHERE id = ? AND flower_id = ?').get(parent_id, id);
+    if (!parent) return res.status(400).json({ error: '无效的回复目标' });
+  }
+
   const userHash = getUserHash(req);
   const result = db.prepare(
-    'INSERT INTO comments (flower_id, content, user_hash) VALUES (?, ?, ?)'
-  ).run(id, content.trim(), userHash);
+    'INSERT INTO comments (flower_id, parent_id, content, user_hash) VALUES (?, ?, ?, ?)'
+  ).run(id, parent_id, content.trim(), userHash);
 
   const newComment = db.prepare('SELECT * FROM comments WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(newComment);

@@ -129,6 +129,7 @@ async function likeFlower(id) {
 // ── Modal ─────────────────────────────────────────────────────────────────────
 let currentModalFlowerId = null;
 let commentsCache = [];
+let activeReplyId = null;
 
 function openModal(id) {
   const f = flowers.find(x => x.id === id);
@@ -158,6 +159,7 @@ function openModal(id) {
   $('#comment-submit-btn').disabled = true;
   $('#comments-list').innerHTML = '<div class="comments-loading">加载中...</div>';
   $('#comments-count').textContent = '';
+  activeReplyId = null;
 
   loadComments(id);
   $('#modal-overlay').classList.add('show');
@@ -186,15 +188,73 @@ function renderComments() {
     list.innerHTML = '<div class="comments-empty">还没有评论，快来抢沙发吧~</div>';
     return;
   }
-  list.innerHTML = commentsCache.map(c => `
-    <div class="comment-item">
-      <div class="comment-avatar">💬</div>
-      <div class="comment-content">
-        <div class="comment-text">${escapeHtml(c.content)}</div>
-        <div class="comment-time">${formatTime(c.created_at)}</div>
+  list.innerHTML = commentsCache.map(c => {
+    const isReply = c.parent_id !== null;
+    const replyTarget = isReply ? commentsCache.find(p => p.id === c.parent_id) : null;
+    const showReplyBox = activeReplyId === c.id;
+    return `
+      <div class="comment-item ${isReply ? 'is-reply' : ''}">
+        <div class="comment-avatar">${isReply ? '↩️' : '💬'}</div>
+        <div class="comment-content">
+          ${replyTarget ? `<div class="reply-to">回复 <span class="reply-to-text">${escapeHtml(replyTarget.content.slice(0, 30))}${replyTarget.content.length > 30 ? '...' : ''}</span></div>` : ''}
+          <div class="comment-text">${escapeHtml(c.content)}</div>
+          <div class="comment-footer">
+            <span class="comment-time">${formatTime(c.created_at)}</span>
+            <button class="reply-btn" data-id="${c.id}">回复</button>
+          </div>
+          ${showReplyBox ? `
+            <div class="reply-input-wrap">
+              <textarea class="reply-input" id="reply-input-${c.id}" placeholder="写下你的回复..." maxlength="200"></textarea>
+              <div class="reply-input-footer">
+                <span class="char-count"><span id="reply-char-${c.id}">0</span>/200</span>
+                <div>
+                  <button class="reply-cancel-btn" data-id="${c.id}">取消</button>
+                  <button class="reply-submit-btn" data-id="${c.id}" disabled>发送</button>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
+
+  list.querySelectorAll('.reply-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.id);
+      activeReplyId = activeReplyId === id ? null : id;
+      renderComments();
+      if (activeReplyId === id) {
+        const input = $(`#reply-input-${id}`);
+        if (input) {
+          input.focus();
+          input.addEventListener('input', () => {
+            $(`#reply-char-${id}`).textContent = input.value.length;
+            $(`.reply-submit-btn[data-id="${id}"]`).disabled = !input.value.trim();
+          });
+        }
+      }
+    });
+  });
+
+  list.querySelectorAll('.reply-cancel-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeReplyId = null;
+      renderComments();
+    });
+  });
+
+  list.querySelectorAll('.reply-submit-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const parentId = parseInt(btn.dataset.id);
+      const input = $(`#reply-input-${parentId}`);
+      if (!input) return;
+      const content = input.value.trim();
+      if (!content) return;
+      btn.disabled = true;
+      await submitComment(content, parentId);
+    });
+  });
 }
 
 $('#comment-input').addEventListener('input', () => {
@@ -204,33 +264,42 @@ $('#comment-input').addEventListener('input', () => {
 });
 
 $('#comment-submit-btn').addEventListener('click', async () => {
-  if (!currentModalFlowerId) return;
   const content = $('#comment-input').value.trim();
   if (!content) return;
+  $('#comment-submit-btn').disabled = true;
+  await submitComment(content, null);
+});
 
-  const btn = $('#comment-submit-btn');
-  btn.disabled = true;
+async function submitComment(content, parentId) {
+  if (!currentModalFlowerId) return;
+  const body = parentId ? { content, parentId } : { content };
   try {
     const res = await fetch(`/api/flowers/${currentModalFlowerId}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       const err = await res.json();
       showToast(err.error);
-      btn.disabled = false;
       return;
     }
-    $('#comment-input').value = '';
-    $('#comment-char-count').textContent = '0';
-    showToast('评论发表成功！');
+    if (parentId) {
+      activeReplyId = null;
+    } else {
+      $('#comment-input').value = '';
+      $('#comment-char-count').textContent = '0';
+    }
+    showToast(parentId ? '回复成功！' : '评论发表成功！');
     loadComments(currentModalFlowerId);
   } catch (e) {
     showToast('发表失败，请稍后再试');
-    btn.disabled = false;
+  } finally {
+    if (!parentId) {
+      $('#comment-submit-btn').disabled = !$('#comment-input').value.trim();
+    }
   }
-});
+}
 
 // ── Post ──────────────────────────────────────────────────────────────────────
 async function loadFlowerTypes() {
