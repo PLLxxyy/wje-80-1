@@ -32,6 +32,15 @@ db.exec(`
     UNIQUE(flower_id, user_hash),
     FOREIGN KEY (flower_id) REFERENCES flowers(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS comments (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    flower_id INTEGER NOT NULL,
+    content   TEXT    NOT NULL,
+    user_hash TEXT    NOT NULL,
+    created_at TEXT   NOT NULL DEFAULT (datetime('now','localtime')),
+    FOREIGN KEY (flower_id) REFERENCES flowers(id) ON DELETE CASCADE
+  );
 `);
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
@@ -204,6 +213,46 @@ app.delete('/api/flowers/:id/like', (req, res) => {
   }
   const updated = db.prepare('SELECT likes FROM flowers WHERE id = ?').get(id);
   res.json({ likes: updated ? updated.likes : 0 });
+});
+
+// GET /api/flowers/:id/comments - get comments for a flower
+app.get('/api/flowers/:id/comments', (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid id' });
+
+  const flower = db.prepare('SELECT id FROM flowers WHERE id = ?').get(id);
+  if (!flower) return res.status(404).json({ error: 'Flower not found' });
+
+  const rows = db.prepare(
+    'SELECT * FROM comments WHERE flower_id = ? ORDER BY created_at DESC'
+  ).all(id);
+
+  res.json(rows);
+});
+
+// POST /api/flowers/:id/comments - add a comment to a flower
+app.post('/api/flowers/:id/comments', (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid id' });
+
+  const { content } = req.body;
+  if (!content || !content.trim()) {
+    return res.status(400).json({ error: '请输入评论内容' });
+  }
+  if (content.length > 200) {
+    return res.status(400).json({ error: '评论不能超过200字' });
+  }
+
+  const flower = db.prepare('SELECT id FROM flowers WHERE id = ?').get(id);
+  if (!flower) return res.status(404).json({ error: 'Flower not found' });
+
+  const userHash = getUserHash(req);
+  const result = db.prepare(
+    'INSERT INTO comments (flower_id, content, user_hash) VALUES (?, ?, ?)'
+  ).run(id, content.trim(), userHash);
+
+  const newComment = db.prepare('SELECT * FROM comments WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(newComment);
 });
 
 // GET /api/flower-types - available flower types

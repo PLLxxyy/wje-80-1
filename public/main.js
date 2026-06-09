@@ -127,12 +127,16 @@ async function likeFlower(id) {
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
+let currentModalFlowerId = null;
+let commentsCache = [];
+
 function openModal(id) {
   const f = flowers.find(x => x.id === id);
   if (!f) return;
   const ft = flowerTypesCache.find(t => t.type === f.flower_type);
   const emoji = ft ? ft.emoji : '🌸';
   const liked = likedIds.has(id);
+  currentModalFlowerId = id;
 
   $('#modal-emoji').textContent = emoji;
   $('#modal-type').textContent = f.flower_type;
@@ -148,11 +152,84 @@ function openModal(id) {
     await likeFlower(id);
     openModal(id); // refresh
   });
+
+  $('#comment-input').value = '';
+  $('#comment-char-count').textContent = '0';
+  $('#comment-submit-btn').disabled = true;
+  $('#comments-list').innerHTML = '<div class="comments-loading">加载中...</div>';
+  $('#comments-count').textContent = '';
+
+  loadComments(id);
   $('#modal-overlay').classList.add('show');
 }
 $('#modal-close').addEventListener('click', () => $('#modal-overlay').classList.remove('show'));
 $('#modal-overlay').addEventListener('click', e => {
   if (e.target === $('#modal-overlay')) $('#modal-overlay').classList.remove('show');
+});
+
+// ── Comments ──────────────────────────────────────────────────────────────────
+async function loadComments(flowerId) {
+  try {
+    const res = await fetch(`/api/flowers/${flowerId}/comments`);
+    if (!res.ok) return;
+    commentsCache = await res.json();
+    renderComments();
+  } catch (e) {
+    $('#comments-list').innerHTML = '<div class="comments-empty">加载评论失败</div>';
+  }
+}
+
+function renderComments() {
+  $('#comments-count').textContent = commentsCache.length;
+  const list = $('#comments-list');
+  if (commentsCache.length === 0) {
+    list.innerHTML = '<div class="comments-empty">还没有评论，快来抢沙发吧~</div>';
+    return;
+  }
+  list.innerHTML = commentsCache.map(c => `
+    <div class="comment-item">
+      <div class="comment-avatar">💬</div>
+      <div class="comment-content">
+        <div class="comment-text">${escapeHtml(c.content)}</div>
+        <div class="comment-time">${formatTime(c.created_at)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+$('#comment-input').addEventListener('input', () => {
+  const val = $('#comment-input').value;
+  $('#comment-char-count').textContent = val.length;
+  $('#comment-submit-btn').disabled = !val.trim();
+});
+
+$('#comment-submit-btn').addEventListener('click', async () => {
+  if (!currentModalFlowerId) return;
+  const content = $('#comment-input').value.trim();
+  if (!content) return;
+
+  const btn = $('#comment-submit-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/flowers/${currentModalFlowerId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      showToast(err.error);
+      btn.disabled = false;
+      return;
+    }
+    $('#comment-input').value = '';
+    $('#comment-char-count').textContent = '0';
+    showToast('评论发表成功！');
+    loadComments(currentModalFlowerId);
+  } catch (e) {
+    showToast('发表失败，请稍后再试');
+    btn.disabled = false;
+  }
 });
 
 // ── Post ──────────────────────────────────────────────────────────────────────
