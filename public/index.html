@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>匿名花墙 - 送一朵花给陌生人</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <h1>🌸 匿名花墙</h1>
+  <p>送一朵花给陌生人，让祝福温暖每个角落</p>
+  <div class="nav">
+    <button class="nav-btn active" data-view="wall">花墙</button>
+    <button class="nav-btn" data-view="post">送花</button>
+    <button class="nav-btn" data-view="admin">管理</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ════ Flower Wall View ════ -->
+  <div class="view active" id="view-wall">
+    <div class="wall-header">
+      <h2>祝福花墙</h2>
+      <span class="like-remaining" id="like-remaining"></span>
+    </div>
+    <div class="wall-grid" id="wall-grid"></div>
+    <div class="empty-wall" id="empty-wall" style="display:none">
+      <div class="big">🌱</div>
+      <p>花墙还是空的，快来送出第一朵花吧！</p>
+    </div>
+    <button class="load-more" id="load-more" style="display:none">加载更多</button>
+  </div>
+
+  <!-- ════ Post View ════ -->
+  <div class="view" id="view-post">
+    <div class="post-section">
+      <h2>送出一朵花</h2>
+      <label style="display:block;margin-bottom:10px;font-weight:600;color:var(--text-light)">选择花种</label>
+      <div class="flower-select" id="flower-select"></div>
+      <textarea class="msg-input" id="msg-input" placeholder="写下你的祝福...&#10;&#10;可以是一句鼓励、一个愿望、或简单的问候。匿名送出，真诚传递。" maxlength="200"></textarea>
+      <div class="char-count"><span id="char-count">0</span>/200</div>
+      <button class="post-btn" id="post-btn" disabled>送出这朵花</button>
+      <div class="success-msg" id="success-msg">
+        <div style="font-size:3em;margin-bottom:10px">🎉</div>
+        <p>你的花已经上墙了！在花墙上可以看到它~</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ Admin View ════ -->
+  <div class="view" id="view-admin">
+    <div id="admin-login" class="admin-login">
+      <h2>管理员登录</h2>
+      <input type="password" class="admin-input" id="admin-token" placeholder="输入管理员令牌">
+      <button class="admin-btn" id="admin-login-btn">登录</button>
+    </div>
+    <div id="admin-panel" class="admin-panel" style="display:none">
+      <div class="stats-bar" id="stats-bar"></div>
+      <div class="filter-bar" id="filter-bar">
+        <button class="filter-btn active" data-filter="all">全部</button>
+        <button class="filter-btn" data-filter="pending">待审核</button>
+        <button class="filter-btn" data-filter="approved">已通过</button>
+      </div>
+      <div id="admin-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal">
+    <button class="modal-close" id="modal-close">&times;</button>
+    <div class="modal-emoji" id="modal-emoji"></div>
+    <div class="modal-type" id="modal-type"></div>
+    <div class="modal-lang-wrap"><span class="modal-lang" id="modal-lang"></span></div>
+    <div class="modal-msg" id="modal-msg"></div>
+    <div class="modal-time" id="modal-time"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="main.js"></script>
+</body>
+</html>
