@@ -36,14 +36,22 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS comments (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     flower_id INTEGER NOT NULL,
-    parent_id INTEGER,
     content   TEXT    NOT NULL,
     user_hash TEXT    NOT NULL,
     created_at TEXT   NOT NULL DEFAULT (datetime('now','localtime')),
-    FOREIGN KEY (flower_id) REFERENCES flowers(id) ON DELETE CASCADE,
-    FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
+    FOREIGN KEY (flower_id) REFERENCES flowers(id) ON DELETE CASCADE
   );
 `);
+
+// ── Database migration: add parent_id column to comments if not exists ──────
+const commentsCols = db.pragma("table_info(comments)").map(c => c.name);
+if (!commentsCols.includes('parent_id')) {
+  db.exec(`
+    ALTER TABLE comments ADD COLUMN parent_id INTEGER;
+    ALTER TABLE comments ADD FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE;
+  `);
+  console.log('Migrated: added parent_id column to comments table');
+}
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 app.use(express.json());
@@ -256,9 +264,16 @@ app.post('/api/flowers/:id/comments', (req, res) => {
   }
 
   const userHash = getUserHash(req);
+  const cols = ['flower_id', 'content', 'user_hash'];
+  const vals = [id, content.trim(), userHash];
+  if (parent_id !== null) {
+    cols.push('parent_id');
+    vals.push(parent_id);
+  }
+  const placeholders = cols.map(() => '?').join(', ');
   const result = db.prepare(
-    'INSERT INTO comments (flower_id, parent_id, content, user_hash) VALUES (?, ?, ?, ?)'
-  ).run(id, parent_id, content.trim(), userHash);
+    `INSERT INTO comments (${cols.join(', ')}) VALUES (${placeholders})`
+  ).run(...vals);
 
   const newComment = db.prepare('SELECT * FROM comments WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(newComment);

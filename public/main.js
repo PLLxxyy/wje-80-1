@@ -174,7 +174,10 @@ async function loadComments(flowerId) {
   try {
     const res = await fetch(`/api/flowers/${flowerId}/comments`);
     if (!res.ok) return;
-    commentsCache = await res.json();
+    let data = await res.json();
+    data = data.map(c => ({ ...c, parent_id: c.parent_id ?? null }));
+    data.sort((a, b) => new Date(b.created_at.replace(' ', 'T')) - new Date(a.created_at.replace(' ', 'T')));
+    commentsCache = data;
     renderComments();
   } catch (e) {
     $('#comments-list').innerHTML = '<div class="comments-empty">加载评论失败</div>';
@@ -189,7 +192,7 @@ function renderComments() {
     return;
   }
   list.innerHTML = commentsCache.map(c => {
-    const isReply = c.parent_id !== null;
+    const isReply = c.parent_id !== null && c.parent_id !== undefined;
     const replyTarget = isReply ? commentsCache.find(p => p.id === c.parent_id) : null;
     const showReplyBox = activeReplyId === c.id;
     return `
