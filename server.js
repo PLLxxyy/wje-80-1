@@ -36,20 +36,19 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS comments (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     flower_id INTEGER NOT NULL,
+    parent_id INTEGER,
     content   TEXT    NOT NULL,
     user_hash TEXT    NOT NULL,
     created_at TEXT   NOT NULL DEFAULT (datetime('now','localtime')),
-    FOREIGN KEY (flower_id) REFERENCES flowers(id) ON DELETE CASCADE
+    FOREIGN KEY (flower_id) REFERENCES flowers(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
   );
 `);
 
 // ── Database migration: add parent_id column to comments if not exists ──────
 const commentsCols = db.pragma("table_info(comments)").map(c => c.name);
 if (!commentsCols.includes('parent_id')) {
-  db.exec(`
-    ALTER TABLE comments ADD COLUMN parent_id INTEGER;
-    ALTER TABLE comments ADD FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE;
-  `);
+  db.exec('ALTER TABLE comments ADD COLUMN parent_id INTEGER');
   console.log('Migrated: added parent_id column to comments table');
 }
 
